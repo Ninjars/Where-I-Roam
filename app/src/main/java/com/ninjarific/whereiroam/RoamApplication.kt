@@ -12,7 +12,7 @@ class RoamApplication : Application() {
 
         startKoin {
             androidContext(this@RoamApplication)
-            modules(roamModule)
+            modules(applicationModule)
         }
 
         Timber.i("app created")
