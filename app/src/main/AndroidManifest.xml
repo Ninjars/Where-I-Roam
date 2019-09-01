@@ -3,6 +3,7 @@
     package="com.ninjarific.whereiroam">
 
     <application
+        android:name=".RoamApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
