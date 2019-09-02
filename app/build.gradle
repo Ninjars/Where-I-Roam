@@ -42,6 +42,7 @@ dependencies {
     testImplementation "androidx.arch.core:core-testing:$lifecycle_version"
 
     implementation 'com.jakewharton.timber:timber:4.7.1'
+    implementation 'com.jakewharton.threetenabp:threetenabp:1.2.1'
 
     def koin_version = "2.0.1"
     implementation "org.koin:koin-core:$koin_version"
