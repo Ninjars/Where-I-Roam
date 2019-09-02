@@ -3,13 +3,15 @@ package com.ninjarific.whereiroam.features.newtrip
 import androidx.lifecycle.*
 import com.ninjarific.whereiroam.database.Repository
 import kotlinx.coroutines.*
-import java.time.LocalDateTime
+import org.threeten.bp.LocalDateTime
+import org.threeten.bp.OffsetDateTime
 import java.util.*
 
 class TripFlowViewModel(private val repository: Repository) : ViewModel() {
 
     private val flowItems = ArrayList<TripFlowItem>()
     private val documents = ArrayList<Document>()
+    private var title = ""
     private val workingItem = MutableLiveData<WorkingTripFlowItem>().apply {
         value = WorkingTripFlowItem(null, null, null)
     }
@@ -35,11 +37,12 @@ class TripFlowViewModel(private val repository: Repository) : ViewModel() {
         resetWorkingData()
     }
 
-    fun updateCountry(country: Country) {
+    fun updateCountry(title: String, country: Country) {
+        this.title = title
         workingItem.value = workingItem.value?.copy(country = country)
     }
 
-    fun updateTimes(start: LocalDateTime, end: LocalDateTime?) {
+    fun updateTimes(start: OffsetDateTime, end: OffsetDateTime?) {
         workingItem.value =
             workingItem.value?.copy(startDate = start, endDate = end, timesConfirmed = true)
     }
@@ -51,7 +54,7 @@ class TripFlowViewModel(private val repository: Repository) : ViewModel() {
     fun complete() {
         workingItem.value = workingItem.value?.copy(saving = true)
         CoroutineScope(Dispatchers.IO).launch {
-            repository.saveTrip(flowItems, documents)
+            repository.saveTrip(title, flowItems, documents)
 
             viewModelScope.launch {
                 workingItem.value = workingItem.value?.copy(finished = true)
@@ -73,8 +76,8 @@ sealed class TripFlowState {
 
 data class WorkingTripFlowItem(
     val country: Country?,
-    val startDate: LocalDateTime?,
-    val endDate: LocalDateTime?,
+    val startDate: OffsetDateTime?,
+    val endDate: OffsetDateTime?,
     val timesConfirmed: Boolean = false,
     val saving: Boolean = false,
     val finished: Boolean = false
@@ -82,8 +85,8 @@ data class WorkingTripFlowItem(
 
 data class TripFlowItem(
     val country: Country,
-    val startDate: LocalDateTime,
-    val endDate: LocalDateTime?,
+    val startDate: OffsetDateTime,
+    val endDate: OffsetDateTime?,
     val documents: List<Document> = emptyList()
 )
 

@@ -6,27 +6,27 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
-
-import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.threeten.bp.OffsetDateTime
 
 @RunWith(AndroidJUnit4::class)
 class DatabaseTest {
 
     private lateinit var db: TripDatabase
-    private lateinit var tripDao: TripDao
-    private lateinit var visitDao: VisitDetailsDao
-    private lateinit var tripDetailsDao: TripDetailsDao
+    private lateinit var tripEntryDao: TripEntryDao
+    private lateinit var visitEntryDao: VisitEntryDao
+    private lateinit var tripVisitsDao: TripVisitsDao
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, TripDatabase::class.java).build()
-        tripDao = db.tripDao()
-        visitDao = db.visitDetailsDao()
-        tripDetailsDao = db.tripDetailsDao()
+        tripEntryDao = db.tripEntryDao()
+        visitEntryDao = db.visitDetailsDao()
+        tripVisitsDao = db.tripVisitsDao()
     }
 
     @After
@@ -36,65 +36,53 @@ class DatabaseTest {
 
     @Test
     fun insertReadUpdateDeleteTrip() = runBlocking {
-        val trip = Trip(
-            0,
-            "title",
-            "countryCode",
-            0,
-            10
-        )
-        val tripId = tripDao.insert(trip)
-        val trips = tripDao.getAll()
+        val trip = TripEntry(0, TITLE)
+        val tripId = tripEntryDao.insert(trip)
+        val trips = tripEntryDao.getAll()
         assertEquals(1, trips.size)
         assertEquals(trip.copy(uid = tripId), trips[0])
 
         val updatedTrip = trips[0].copy(title="updatedTitle")
-        tripDao.update(updatedTrip)
-        val updatedTrips = tripDao.getAll()
+        tripEntryDao.update(updatedTrip)
+        val updatedTrips = tripEntryDao.getAll()
         assertEquals(1, updatedTrips.size)
         assertEquals(updatedTrip, updatedTrips[0])
 
-        tripDao.delete(updatedTrip)
-        val tripsAfterDelete = tripDao.getAll()
+        tripEntryDao.delete(updatedTrip)
+        val tripsAfterDelete = tripEntryDao.getAll()
         assertEquals(0, tripsAfterDelete.size)
     }
 
     @Test
     fun insertReadUpdateDeleteVisitDetails() = runBlocking {
-        val trip = Trip(
-            0,
-            "title",
-            "countryCode",
-            0,
-            10
-        )
-        val tripId = tripDao.insert(trip)
+        val trip = TripEntry(0, TITLE)
+        val tripId = tripEntryDao.insert(trip)
 
-        val visit = VisitDetails(
+        val visit = VisitEntry(
             0,
             tripId,
             "visitCountry",
-            1,
-            2
+            DATE_START,
+            DATE_END
         )
-        val visitId = visitDao.insert(visit)
+        visitEntryDao.insertAll(listOf(visit))
 
-        val visits = visitDao.getVisits(tripId)
+        val visits = visitEntryDao.getVisits(tripId)
         assertEquals(1, visits.size)
-        assertEquals(visit.copy(uid = visitId), visits[0])
+        assertEquals(visit.copy(uid = visits[0].uid), visits[0])
 
         val updatedVisit = visits[0].copy(countryCode="updatedCountryCode")
-        visitDao.update(updatedVisit)
-        val updatedVisits = visitDao.getVisits(tripId)
+        visitEntryDao.update(updatedVisit)
+        val updatedVisits = visitEntryDao.getVisits(tripId)
         assertEquals(1, updatedVisits.size)
         assertEquals(updatedVisit, updatedVisits[0])
 
-        visitDao.delete(updatedVisit)
-        val visitsAfterDelete = visitDao.getVisits(tripId)
+        visitEntryDao.delete(updatedVisit)
+        val visitsAfterDelete = visitEntryDao.getVisits(tripId)
         assertEquals(0, visitsAfterDelete.size)
 
-        // verify trip unaffected
-        val trips = tripDao.getAll()
+        // verify tripEntry unaffected
+        val trips = tripEntryDao.getAll()
         assertEquals(1, trips.size)
         assertEquals(trip.copy(uid = tripId), trips[0])
     }
@@ -102,25 +90,58 @@ class DatabaseTest {
     @Test
     fun tripDetails() = runBlocking {
         val tripId = 1L
-        val trip = Trip(
-            tripId,
-            "title",
-            "countryCode",
-            0,
-            10
-        )
-        tripDao.insert(trip)
-        val visit = VisitDetails(
+        val trip = TripEntry(tripId, TITLE)
+        tripEntryDao.insert(trip)
+        val visit = VisitEntry(
             1,
             tripId,
             "visitCountry",
-            1,
-            2
+            DATE_START,
+            DATE_END
         )
-        visitDao.insert(visit)
+        visitEntryDao.insertAll(listOf(visit))
 
-        val tripDetails = tripDetailsDao.get(tripId)
-        assertEquals(trip.copy(uid=tripId), tripDetails.trip)
+        val tripDetails = tripVisitsDao.get(tripId)
+        assertEquals(trip.copy(uid=tripId), tripDetails.tripEntry)
         assertEquals(visit.copy(uid=1), tripDetails.visitDetails[0])
+    }
+
+    @Test
+    fun tripVisits() = runBlocking {
+        val tripId = 1L
+        val trip = TripEntry(tripId, TITLE)
+        tripEntryDao.insert(trip)
+
+        val tripEnd = OffsetDateTime.parse("2010-01-20T00:00:00+00:00")
+        val visits = listOf(
+            VisitEntry(
+                1,
+                tripId,
+                "visitCountry",
+                DATE_START,
+                DATE_END
+            ),
+            VisitEntry(
+                2,
+                tripId,
+                "visitCountryTwo",
+                DATE_END,
+                tripEnd
+            )
+        )
+        visitEntryDao.insertAll(visits)
+
+        val tripVisits = tripVisitsDao.get(tripId)
+        val recalledTrip = tripVisits.tripEntry!!
+        val recalledVisits = tripVisits.visitDetails
+
+        assertEquals(trip, recalledTrip)
+        assertEquals(visits, recalledVisits)
+    }
+
+    companion object {
+        private const val TITLE = "title"
+        private val DATE_START = OffsetDateTime.parse("2010-01-01T00:00:00+00:00")
+        private val DATE_END = OffsetDateTime.parse("2010-01-10T00:00:00+00:00")
     }
 }
