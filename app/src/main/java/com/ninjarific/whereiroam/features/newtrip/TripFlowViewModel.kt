@@ -11,69 +11,89 @@ import java.util.*
 class TripFlowViewModel(private val repository: Repository) : ViewModel() {
 
     private val flowItems = ArrayList<TripFlowItem>()
-    private val documents = ArrayList<Document>()
-    private var title = ""
-    private val workingItem = MutableLiveData<WorkingTripFlowItem>().apply {
-        value = WorkingTripFlowItem(null, null, null, null)
-    }
-
-    private fun resetWorkingData() {
-        flowItems.clear()
-        documents.clear() // TODO: delete any working documents that are persisted
-        workingItem.value = WorkingTripFlowItem(null, null, null, null)
-    }
+    private var title: String = ""
+    private var workingItem = WorkingTripFlowItem(null, null, null)
+    private val currentPage = MutableLiveData<Screen>().apply { value = Screen.TITLE }
 
     fun getState(): LiveData<TripFlowState> {
-        return Transformations.map(workingItem) {
-            when {
-                it.title == null -> TripFlowState.TitleInput(null)
-                it.country == null -> TripFlowState.WhereTo(null)
-                !it.timesConfirmed -> TripFlowState.TravelDates(it.country, null, null)
-                it.finished -> TripFlowState.Close
-                else -> TripFlowState.Summary(flowItems, documents, it.saving)
+        val mapped = Transformations.map(currentPage) { screen: Screen ->
+            when (screen) {
+                Screen.TITLE -> TripFlowState.TitleInput(title)
+                Screen.COUNTRY -> TripFlowState.WhereTo(workingItem.country)
+                Screen.DATES -> TripFlowState.TravelDates(
+                    workingItem.country!!,
+                    workingItem.startDate,
+                    workingItem.endDate
+                )
+                Screen.SUMMARY -> TripFlowState.Summary(flowItems)
+                Screen.COMPLETE -> TripFlowState.Saving
+                Screen.CLOSE -> TripFlowState.Close
             }
         }
+        return Transformations.distinctUntilChanged(mapped)
     }
 
-    fun goBack(): Boolean {
-        return false
-    }
-
-    fun reset() {
-        resetWorkingData()
+    fun goBack() {
+        currentPage.postValue(
+            when (currentPage.value) {
+                Screen.TITLE -> Screen.CLOSE
+                Screen.COUNTRY -> {
+                    if (flowItems.isEmpty()) {
+                        Screen.TITLE
+                    } else {
+                        Screen.SUMMARY
+                    }
+                }
+                Screen.DATES -> Screen.COUNTRY
+                Screen.SUMMARY -> Screen.SUMMARY
+                Screen.COMPLETE -> Screen.COMPLETE
+                Screen.CLOSE -> Screen.CLOSE
+                null -> throw NullPointerException("unexpectedly null screen")
+            }
+        )
     }
 
     fun updateTitle(title: String) {
-        workingItem.value = workingItem.value?.copy(title = title)
+        this.title = title
+        currentPage.postValue(Screen.COUNTRY)
     }
 
     fun updateCountry(country: Country) {
-        workingItem.value = workingItem.value?.copy(country = country)
+        workingItem = workingItem.copy(country = country)
+        currentPage.postValue(Screen.DATES)
     }
 
     fun updateTimes(start: OffsetDateTime, end: OffsetDateTime?) {
-        workingItem.value =
-            workingItem.value?.copy(startDate = start, endDate = end, timesConfirmed = true)
-    }
-
-    fun appendDocuments(documents: List<Document>) {
-        this.documents.addAll(documents)
+        workingItem = workingItem.copy(startDate = start, endDate = end)
+        moveWorkingItemToFlowItems()
+        currentPage.postValue(Screen.SUMMARY)
     }
 
     fun complete() {
-        workingItem.value = workingItem.value?.copy(saving = true)
+        currentPage.postValue(Screen.COMPLETE)
         CoroutineScope(Dispatchers.IO).launch {
-            repository.saveTrip(title, flowItems, documents)
+            repository.saveTrip(title, flowItems)
 
             viewModelScope.launch {
-                workingItem.value = workingItem.value?.copy(finished = true)
+                currentPage.postValue(Screen.CLOSE)
             }
         }
+    }
+
+    fun addExtraVisit() {
+        workingItem = WorkingTripFlowItem( null, null, null)
+        currentPage.postValue(Screen.COUNTRY)
+    }
+
+    private fun moveWorkingItemToFlowItems() {
+        flowItems.add(TripFlowItem(workingItem.country!!, workingItem.startDate!!, workingItem.endDate))
+        workingItem = WorkingTripFlowItem( null, null, null)
     }
 }
 
 sealed class TripFlowState {
     object Close : TripFlowState()
+    object Saving : TripFlowState()
     data class TitleInput(val prefill: String?) : TripFlowState()
     data class WhereTo(val prefill: Country?) : TripFlowState()
     data class TravelDates(
@@ -82,36 +102,32 @@ sealed class TripFlowState {
         val prefillEnd: OffsetDateTime?
     ) : TripFlowState()
 
-    data class Summary(
-        val itinerary: List<TripFlowItem>,
-        val documents: List<Document>,
-        val saving: Boolean
-    ) : TripFlowState()
+    data class Summary(val itinerary: List<TripFlowItem>) : TripFlowState()
+
+}
+
+enum class Screen {
+    TITLE,
+    COUNTRY,
+    DATES,
+    SUMMARY,
+    COMPLETE,
+    CLOSE
 }
 
 data class WorkingTripFlowItem(
-    val title: String?,
     val country: Country?,
     val startDate: OffsetDateTime?,
-    val endDate: OffsetDateTime?,
-    val timesConfirmed: Boolean = false,
-    val saving: Boolean = false,
-    val finished: Boolean = false
+    val endDate: OffsetDateTime?
 )
 
 data class TripFlowItem(
     val country: Country,
     val startDate: OffsetDateTime,
-    val endDate: OffsetDateTime?,
-    val documents: List<Document> = emptyList()
+    val endDate: OffsetDateTime?
 )
 
 data class Country(
     val code: String,
     val name: String
-)
-
-data class Document(
-    val name: String,
-    val location: String
 )

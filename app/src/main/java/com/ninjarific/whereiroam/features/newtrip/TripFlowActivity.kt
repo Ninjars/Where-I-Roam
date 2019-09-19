@@ -13,6 +13,10 @@ class TripFlowActivity : AppCompatActivity() {
 
     private val viewModel by viewModel<TripFlowViewModel>()
 
+    override fun onBackPressed() {
+        viewModel.goBack()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_trip_flow)
@@ -20,13 +24,21 @@ class TripFlowActivity : AppCompatActivity() {
         viewModel.getState().observe(this, Observer { state ->
             Timber.i(state.toString())
             when (state) {
-//                TripFlowState.Close -> TODO()
+                TripFlowState.Close -> finish()
                 is TripFlowState.TitleInput -> askForTitle(state)
                 is TripFlowState.WhereTo -> showCountryCodePicker(state)
-//                is TripFlowState.TravelDates -> TODO()
-//                is TripFlowState.Summary -> TODO()
+                is TripFlowState.TravelDates -> showDateSelector(state)
+                is TripFlowState.Summary -> showSummary(state)
             }
         })
+    }
+
+    private fun showSummary(state: TripFlowState.Summary) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    private fun showDateSelector(state: TripFlowState.TravelDates) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     private fun showCountryCodePicker(state: TripFlowState.WhereTo) {
@@ -36,10 +48,6 @@ class TripFlowActivity : AppCompatActivity() {
         state.prefill?.let {
             codePicker.setDefaultCountryUsingNameCode(it.code)
             // TODO: might need to also call resetToDefaultCountry
-        }
-
-        codePicker.setOnCountryChangeListener {
-            Timber.i(codePicker.selectedCountryName)
         }
 
         confirmButton.setOnClickListener {

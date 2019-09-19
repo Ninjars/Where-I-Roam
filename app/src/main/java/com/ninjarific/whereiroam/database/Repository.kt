@@ -3,7 +3,6 @@ package com.ninjarific.whereiroam.database
 import android.content.Context
 import androidx.annotation.WorkerThread
 import androidx.room.Room
-import com.ninjarific.whereiroam.features.newtrip.Document
 import com.ninjarific.whereiroam.features.newtrip.TripFlowItem
 import java.util.*
 
@@ -15,8 +14,7 @@ class Repository(context: Context) {
     @WorkerThread
     suspend fun saveTrip(
         title: String,
-        flowItems: ArrayList<TripFlowItem>,
-        documents: ArrayList<Document>
+        flowItems: ArrayList<TripFlowItem>
     ) {
         if (flowItems.isEmpty()) return
 
