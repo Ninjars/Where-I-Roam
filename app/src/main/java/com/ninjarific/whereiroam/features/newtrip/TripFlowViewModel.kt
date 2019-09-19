@@ -2,8 +2,9 @@ package com.ninjarific.whereiroam.features.newtrip
 
 import androidx.lifecycle.*
 import com.ninjarific.whereiroam.database.Repository
-import kotlinx.coroutines.*
-import org.threeten.bp.LocalDateTime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.threeten.bp.OffsetDateTime
 import java.util.*
 
@@ -13,32 +14,40 @@ class TripFlowViewModel(private val repository: Repository) : ViewModel() {
     private val documents = ArrayList<Document>()
     private var title = ""
     private val workingItem = MutableLiveData<WorkingTripFlowItem>().apply {
-        value = WorkingTripFlowItem(null, null, null)
+        value = WorkingTripFlowItem(null, null, null, null)
     }
 
     private fun resetWorkingData() {
         flowItems.clear()
         documents.clear() // TODO: delete any working documents that are persisted
-        workingItem.value = WorkingTripFlowItem(null, null, null)
+        workingItem.value = WorkingTripFlowItem(null, null, null, null)
     }
 
     fun getState(): LiveData<TripFlowState> {
         return Transformations.map(workingItem) {
             when {
-                it.country == null -> TripFlowState.WhereTo
-                !it.timesConfirmed -> TripFlowState.TravelDates(it.country)
+                it.title == null -> TripFlowState.TitleInput(null)
+                it.country == null -> TripFlowState.WhereTo(null)
+                !it.timesConfirmed -> TripFlowState.TravelDates(it.country, null, null)
                 it.finished -> TripFlowState.Close
                 else -> TripFlowState.Summary(flowItems, documents, it.saving)
             }
         }
     }
 
+    fun goBack(): Boolean {
+        return false
+    }
+
     fun reset() {
         resetWorkingData()
     }
 
-    fun updateCountry(title: String, country: Country) {
-        this.title = title
+    fun updateTitle(title: String) {
+        workingItem.value = workingItem.value?.copy(title = title)
+    }
+
+    fun updateCountry(country: Country) {
         workingItem.value = workingItem.value?.copy(country = country)
     }
 
@@ -65,8 +74,14 @@ class TripFlowViewModel(private val repository: Repository) : ViewModel() {
 
 sealed class TripFlowState {
     object Close : TripFlowState()
-    object WhereTo : TripFlowState()
-    data class TravelDates(val country: Country) : TripFlowState()
+    data class TitleInput(val prefill: String?) : TripFlowState()
+    data class WhereTo(val prefill: Country?) : TripFlowState()
+    data class TravelDates(
+        val country: Country,
+        val prefillStart: OffsetDateTime?,
+        val prefillEnd: OffsetDateTime?
+    ) : TripFlowState()
+
     data class Summary(
         val itinerary: List<TripFlowItem>,
         val documents: List<Document>,
@@ -75,6 +90,7 @@ sealed class TripFlowState {
 }
 
 data class WorkingTripFlowItem(
+    val title: String?,
     val country: Country?,
     val startDate: OffsetDateTime?,
     val endDate: OffsetDateTime?,
